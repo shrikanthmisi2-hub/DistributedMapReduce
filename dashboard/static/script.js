@@ -543,7 +543,7 @@ function renderResults(resultsData) {
             <tr>
                 <td><span class="font-mono text-muted text-xs">${idx + 1}</span></td>
                 <td><span class="code-pill font-mono">${word}</span></td>
-                <td><span class="font-mono" style="font-weight: 600; color: #ffffff;">${count}</span></td>
+                <td><span class="font-mono" style="font-weight: 600; color: var(--text-primary);">${count}</span></td>
                 <td>
                     <div class="freq-bar-container">
                         <div class="freq-bar-track" title="${pctDisplay}">
