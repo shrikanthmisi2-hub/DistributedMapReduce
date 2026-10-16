@@ -1,0 +1,10 @@
+eight: 1
+five: 1
+four: 1
+nine: 1
+one: 1
+seven: 1
+six: 1
+ten: 1
+three: 1
+two: 1

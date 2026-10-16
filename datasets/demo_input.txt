@@ -1,0 +1,4 @@
+distributed systems process large datasets
+map reduce distributes processing across workers
+distributed workers process tasks in parallel
+fault tolerance retries failed tasks

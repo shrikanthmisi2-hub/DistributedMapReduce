@@ -1,0 +1,6 @@
+cloud: 1
+cluster: 1
+computing: 1
+distributed: 1
+mapreduce: 1
+node: 1

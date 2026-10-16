@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Distributed MapReduce Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Top Navigation -->
+        <header class="dashboard-header">
+            <div class="header-brand">
+                <div class="logo-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                        <polyline points="2 17 12 22 22 17"></polyline>
+                        <polyline points="2 12 12 17 22 12"></polyline>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="brand-title">Distributed MapReduce</h1>
+                    <span class="brand-subtitle">Cluster Monitoring & Task Orchestration</span>
+                </div>
+            </div>
+
+            <div class="header-status">
+                <div id="connection-pill" class="status-pill connecting">
+                    <span class="pulse-dot"></span>
+                    <span id="connection-text">Connecting...</span>
+                </div>
+                <div class="header-controls">
+                    <button id="refresh-btn" class="btn-secondary" title="Refresh Now">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 4v6h-6"></path>
+                            <path d="M1 20v-6h6"></path>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                        </svg>
+                        <span>Refresh</span>
+                    </button>
+                    <span id="last-updated" class="timestamp">Updated: --</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- API Error Alert Banner (Hidden by default) -->
+        <div id="error-banner" class="alert-banner hidden">
+            <div class="alert-content">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <span id="error-message">Master server unreachable on port 8080. Retrying automatically...</span>
+            </div>
+        </div>
+
+        <main class="dashboard-main">
+            <!-- 1. Cluster Overview: Metric Cards Grid -->
+            <section class="metrics-grid" id="cluster-overview-section">
+                <!-- Card 1: Job State -->
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-label">Job Execution State</span>
+                        <div class="metric-icon state-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="metric-value-container">
+                        <span id="job-state-badge" class="state-badge badge-idle">IDLE</span>
+                    </div>
+                    <div class="metric-footer" id="job-state-subtext">Waiting for job submission</div>
+                    <div class="metric-subid">Job ID: <span class="font-mono text-cyan" id="current-job-id-text">—</span></div>
+                </div>
+
+                <!-- Card 2: Progress -->
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-label">Task Completion</span>
+                        <div class="metric-icon progress-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="metric-value-container">
+                        <span id="metric-progress-pct" class="metric-number">0%</span>
+                    </div>
+                    <div class="metric-footer" id="metric-progress-subtext">0 / 0 tasks completed</div>
+                    <div class="metric-subid">Jobs Run: <span class="font-mono text-cyan" id="metric-total-jobs-run">0</span></div>
+                </div>
+
+                <!-- Card 3: Total Tasks -->
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-label">Task Queue</span>
+                        <div class="metric-icon tasks-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="7" height="7"></rect>
+                                <rect x="14" y="3" width="7" height="7"></rect>
+                                <rect x="14" y="14" width="7" height="7"></rect>
+                                <rect x="3" y="14" width="7" height="7"></rect>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="metric-value-container">
+                        <span id="metric-total-tasks" class="metric-number">0</span>
+                    </div>
+                    <div class="metric-footer" id="metric-tasks-subtext">Pending: 0 · Assigned: 0 · Failed: 0</div>
+                    <div class="metric-subid">Completed: <span class="font-mono text-emerald" id="metric-completed-count">0</span></div>
+                </div>
+
+                <!-- Card 4: Registered Workers -->
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-label">Active Workers</span>
+                        <div class="metric-icon workers-icon">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="metric-value-container">
+                        <span id="metric-worker-count" class="metric-number">0</span>
+                    </div>
+                    <div class="metric-footer" id="metric-workers-subtext">0 Idle · 0 Busy · 0 Unavailable</div>
+                    <div class="metric-subid">TCP Port: <span class="font-mono text-indigo">5000</span></div>
+                </div>
+            </section>
+
+            <!-- FEATURE 1: Live Distributed Cluster Map -->
+            <section class="section-card cluster-map-section" id="cluster-map-section">
+                <div class="section-card-header">
+                    <div>
+                        <h2 class="section-title">Distributed Cluster Topology</h2>
+                        <span class="section-subtitle">Real-time coordinator & worker node orchestration map</span>
+                    </div>
+                    <div class="cluster-summary-pills">
+                        <span id="cluster-master-status-pill" class="pill-neutral">
+                            <span class="pulse-dot"></span>
+                            <span id="cluster-master-status-text">Master: Online</span>
+                        </span>
+                        <span id="cluster-worker-count-pill" class="pill-neutral font-mono">0 Workers Connected</span>
+                        <span id="cluster-tasks-completed-pill" class="pill-neutral font-mono text-emerald">0 Tasks Finished</span>
+                    </div>
+                </div>
+
+                <div class="cluster-topology-container" id="cluster-topology-container">
+                    <!-- Dynamic SVG Connection Overlay -->
+                    <svg class="cluster-svg-canvas" id="cluster-svg-canvas" aria-hidden="true">
+                        <defs>
+                            <filter id="svg-active-glow" x="-20%" y="-20%" width="140%" height="140%">
+                                <feGaussianBlur stdDeviation="3" result="glow" />
+                                <feComposite in="SourceGraphic" in2="glow" operator="over" />
+                            </filter>
+                        </defs>
+                        <g id="cluster-svg-links"></g>
+                    </svg>
+
+                    <!-- Central Master Node -->
+                    <div class="cluster-master-node" id="cluster-master-node">
+                        <div class="master-header">
+                            <div class="master-badge-indicator">
+                                <span class="master-beacon-dot online" id="master-beacon-dot"></span>
+                                <span class="master-role-text">MASTER NODE &bull; COORDINATOR</span>
+                            </div>
+                            <span id="master-stage-pill" class="state-badge badge-idle">IDLE</span>
+                        </div>
+                        <div class="master-body">
+                            <div class="master-title-row">
+                                <div class="master-avatar">
+                                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                                        <polyline points="2 17 12 22 22 17"></polyline>
+                                        <polyline points="2 12 12 17 22 12"></polyline>
+                                    </svg>
+                                </div>
+                                <div class="master-titles">
+                                    <h3 class="master-name" id="master-node-title">Cluster Master Server</h3>
+                                    <span class="master-subinfo font-mono" id="master-endpoint-text">TCP: 127.0.0.1:5000 &bull; HTTP: 8080</span>
+                                </div>
+                            </div>
+                            <div class="master-details-grid">
+                                <div class="master-stat-item">
+                                    <span class="master-stat-label">Active Job ID</span>
+                                    <span class="master-stat-val font-mono text-cyan" id="master-active-job-text">—</span>
+                                </div>
+                                <div class="master-stat-item">
+                                    <span class="master-stat-label">Cluster Tasks Done</span>
+                                    <span class="master-stat-val font-mono text-emerald" id="master-completed-tasks-text">0</span>
+                                </div>
+                                <div class="master-stat-item">
+                                    <span class="master-stat-label">Workers Registered</span>
+                                    <span class="master-stat-val font-mono" id="master-active-workers-text">0</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="master-connector-anchor" id="master-anchor"></div>
+                    </div>
+
+                    <!-- Connected Worker Nodes Container -->
+                    <div class="cluster-workers-grid" id="cluster-workers-grid">
+                        <div class="cluster-empty-workers" id="cluster-empty-workers">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                                <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                                <line x1="6" y1="18" x2="6.01" y2="18"></line>
+                            </svg>
+                            <p>No worker nodes currently registered</p>
+                            <span class="empty-hint">Start a worker: <code>python workers/worker.py --worker-id worker-1</code></span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. Submit New Job Section -->
+            <section class="section-card submit-job-section" id="submit-job-section">
+                <div class="section-card-header">
+                    <div>
+                        <h2 class="section-title">Submit New MapReduce Job</h2>
+                        <span class="section-subtitle">Dispatch dynamic text or file uploads to distributed workers</span>
+                    </div>
+                    <div class="header-action-group">
+                        <button type="button" id="load-sample-btn" class="btn-ghost" title="Load sample sentences for a demonstration">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                            </svg>
+                            <span>Load Demo Sample</span>
+                        </button>
+                    </div>
+                </div>
+
+                <form id="job-submit-form" class="job-form" onsubmit="return false;">
+                    <!-- Submission Mode Switcher -->
+                    <div class="mode-switcher-container">
+                        <span class="control-label">Input Source:</span>
+                        <div class="mode-tabs">
+                            <button type="button" id="mode-tab-text" class="mode-tab active" data-mode="text">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="17" y1="10" x2="3" y2="10"></line>
+                                    <line x1="21" y1="6" x2="3" y2="6"></line>
+                                    <line x1="21" y1="14" x2="3" y2="14"></line>
+                                    <line x1="17" y1="18" x2="3" y2="18"></line>
+                                </svg>
+                                <span>Custom Text Input</span>
+                            </button>
+                            <button type="button" id="mode-tab-file" class="mode-tab" data-mode="file">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                                <span>Upload .txt File</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Mode A: Text Input Container -->
+                    <div id="text-input-container" class="input-container">
+                        <label for="job-input-text" class="sr-only">Input Text</label>
+                        <textarea id="job-input-text" class="form-textarea" rows="4" placeholder="Enter custom sentences, paragraphs, or words to distribute across workers...&#10;e.g. Distributed MapReduce processes big data by mapping lines to key-value pairs and reducing counts across cluster nodes."></textarea>
+                        <div class="input-meta-bar">
+                            <span id="text-input-stats" class="text-muted font-mono">0 characters &bull; 0 words</span>
+                            <span class="text-muted text-xs">Each partition is processed concurrently by available workers</span>
+                        </div>
+                    </div>
+
+                    <!-- Mode B: File Upload Container -->
+                    <div id="file-input-container" class="input-container hidden">
+                        <div id="file-drop-area" class="file-drop-box">
+                            <input type="file" id="job-file-input" accept=".txt" class="file-input-hidden">
+                            <div class="drop-icon">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                            </div>
+                            <div class="drop-text">
+                                <span class="drop-main">Click to select or drag and drop a <strong>.txt</strong> file</span>
+                                <span class="drop-hint">Accepts plain text files (UTF-8 encoding)</span>
+                            </div>
+                            <div id="selected-file-badge" class="selected-file-badge hidden">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                    <polyline points="14 2 14 8 20 8"></polyline>
+                                </svg>
+                                <span id="selected-file-name" class="font-mono">file.txt</span>
+                                <button type="button" id="remove-file-btn" class="file-remove-btn" title="Remove file">&times;</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Configuration Controls Row -->
+                    <div class="form-config-row">
+                        <div class="config-field">
+                            <label for="job-num-mappers" class="config-label">
+                                <span>Configurable Map Tasks:</span>
+                                <span id="num-mappers-val" class="count-pill">2 tasks</span>
+                            </label>
+                            <div class="config-input-wrapper">
+                                <input type="number" id="job-num-mappers" min="1" max="32" value="2" class="form-input-number">
+                                <div class="task-preset-pills">
+                                    <button type="button" class="preset-pill" data-val="1">1</button>
+                                    <button type="button" class="preset-pill active" data-val="2">2</button>
+                                    <button type="button" class="preset-pill" data-val="4">4</button>
+                                    <button type="button" class="preset-pill" data-val="8">8</button>
+                                </div>
+                            </div>
+                            <span class="field-hint">The master will partition the input text into this many parallel map tasks.</span>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="form-actions-wrapper">
+                            <button type="button" id="clear-form-btn" class="btn-secondary">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
+                                <span>Clear</span>
+                            </button>
+                            <button type="submit" id="submit-job-btn" class="btn-primary">
+                                <span id="submit-spinner" class="spinner-inline hidden"></span>
+                                <svg id="submit-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                </svg>
+                                <span id="submit-btn-text">Run MapReduce Job</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Inline Feedback / Notification Banner -->
+                    <div id="submit-feedback" class="feedback-banner hidden">
+                        <div class="feedback-content">
+                            <span id="feedback-icon" class="feedback-icon"></span>
+                            <span id="submit-feedback-msg" class="feedback-msg"></span>
+                        </div>
+                    </div>
+                </form>
+            </section>
+
+            <!-- FEATURE 3: Current Job Progress & Execution Timeline -->
+            <section class="section-card progress-section" id="progress-section">
+                <div class="section-card-header">
+                    <div>
+                        <h2 class="section-title">Job Execution Timeline & Pipeline</h2>
+                        <span class="section-subtitle">Interactive 6-phase distributed MapReduce execution flow</span>
+                    </div>
+                    <div class="progress-badges">
+                        <span id="job-duration-badge" class="pill-neutral font-mono">Duration: 0.0s</span>
+                        <span id="progress-summary-badge" class="pill-neutral">0 / 0 Completed</span>
+                    </div>
+                </div>
+                <div class="progress-bar-track">
+                    <div id="progress-bar-fill" class="progress-bar-fill" style="width: 0%;"></div>
+                </div>
+
+                <!-- 6-Phase Interactive Execution Timeline -->
+                <div class="timeline-container">
+                    <div class="pipeline-stepper" id="execution-timeline">
+                        <!-- Phase 1: Workers Ready -->
+                        <div class="step-item" id="step-registered" data-phase="ready">
+                            <div class="step-node">
+                                <span class="step-dot"></span>
+                                <span class="step-num font-mono">1</span>
+                            </div>
+                            <div class="step-info">
+                                <span class="step-title">Workers Ready</span>
+                                <span class="step-meta" id="step-meta-ready">Checking cluster</span>
+                            </div>
+                        </div>
+                        <div class="step-divider" id="divider-ready-submitted"></div>
+
+                        <!-- Phase 2: Job Submitted -->
+                        <div class="step-item" id="step-submitted" data-phase="submitted">
+                            <div class="step-node">
+                                <span class="step-dot"></span>
+                                <span class="step-num font-mono">2</span>
+                            </div>
+                            <div class="step-info">
+                                <span class="step-title">Job Submitted</span>
+                                <span class="step-meta" id="step-meta-submitted">Awaiting input</span>
+                            </div>
+                        </div>
+                        <div class="step-divider" id="divider-submitted-map"></div>
+
+                        <!-- Phase 3: Map Phase -->
+                        <div class="step-item" id="step-map" data-phase="map">
+                            <div class="step-node">
+                                <span class="step-dot"></span>
+                                <span class="step-num font-mono">3</span>
+                            </div>
+                            <div class="step-info">
+                                <span class="step-title">Map Phase</span>
+                                <span class="step-meta" id="step-meta-map">Partitioning text</span>
+                            </div>
+                        </div>
+                        <div class="step-divider" id="divider-map-shuffle"></div>
+
+                        <!-- Phase 4: Shuffle & Group -->
+                        <div class="step-item" id="step-shuffle" data-phase="shuffle">
+                            <div class="step-node">
+                                <span class="step-dot"></span>
+                                <span class="step-num font-mono">4</span>
+                            </div>
+                            <div class="step-info">
+                                <span class="step-title">Shuffle & Group</span>
+                                <span class="step-meta" id="step-meta-shuffle">Grouping keys</span>
+                            </div>
+                        </div>
+                        <div class="step-divider" id="divider-shuffle-reduce"></div>
+
+                        <!-- Phase 5: Reduce Phase -->
+                        <div class="step-item" id="step-reduce" data-phase="reduce">
+                            <div class="step-node">
+                                <span class="step-dot"></span>
+                                <span class="step-num font-mono">5</span>
+                            </div>
+                            <div class="step-info">
+                                <span class="step-title">Reduce Phase</span>
+                                <span class="step-meta" id="step-meta-reduce">Aggregating counts</span>
+                            </div>
+                        </div>
+                        <div class="step-divider" id="divider-reduce-done"></div>
+
+                        <!-- Phase 6: Complete -->
+                        <div class="step-item" id="step-done" data-phase="complete">
+                            <div class="step-node">
+                                <span class="step-dot"></span>
+                                <span class="step-num font-mono">6</span>
+                            </div>
+                            <div class="step-info">
+                                <span class="step-title">Complete</span>
+                                <span class="step-meta" id="step-meta-done">Results output</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Phase Inspector Drawer -->
+                    <div class="timeline-phase-inspector" id="timeline-phase-inspector">
+                        <div class="inspector-header">
+                            <div class="inspector-title-row">
+                                <span class="inspector-badge" id="inspector-badge">Phase 1</span>
+                                <h4 class="inspector-title" id="inspector-title">Workers Ready & Cluster State</h4>
+                            </div>
+                            <span class="inspector-status-pill" id="inspector-status-pill">Active</span>
+                        </div>
+                        <p class="inspector-desc" id="inspector-desc">
+                            The Master node initializes on TCP port 5000 and registers worker nodes via bi-directional socket connections.
+                        </p>
+                        <div class="inspector-metrics" id="inspector-metrics">
+                            <div class="inspector-metric-item">
+                                <span class="inspector-label">Phase Started:</span>
+                                <span class="inspector-val font-mono" id="inspector-start-time">--</span>
+                            </div>
+                            <div class="inspector-metric-item">
+                                <span class="inspector-label">Phase Ended:</span>
+                                <span class="inspector-val font-mono" id="inspector-end-time">--</span>
+                            </div>
+                            <div class="inspector-metric-item">
+                                <span class="inspector-label">Phase Duration:</span>
+                                <span class="inspector-val font-mono text-cyan" id="inspector-duration">--</span>
+                            </div>
+                            <div class="inspector-metric-item">
+                                <span class="inspector-label">Phase Details:</span>
+                                <span class="inspector-val" id="inspector-details">Cluster monitoring active</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4. MapReduce Results Section -->
+            <section class="section-card results-section" id="results-section">
+                <div class="section-card-header">
+                    <div class="title-with-badge">
+                        <h2 class="section-title">MapReduce Results</h2>
+                        <span id="results-job-id-badge" class="font-mono text-cyan pill-neutral">No Job Executed Yet</span>
+                    </div>
+                    <div class="section-meta" id="results-meta-timestamp">Awaiting output</div>
+                </div>
+
+                <!-- Results Summary Metrics -->
+                <div class="results-stats-row">
+                    <div class="result-stat-chip">
+                        <span class="stat-chip-label">Unique Words</span>
+                        <span id="res-unique-words" class="stat-chip-val font-mono">0</span>
+                    </div>
+                    <div class="result-stat-chip">
+                        <span class="stat-chip-label">Total Words</span>
+                        <span id="res-total-words" class="stat-chip-val font-mono">0</span>
+                    </div>
+                    <div class="result-stat-chip">
+                        <span class="stat-chip-label">Input Size</span>
+                        <span id="res-input-size" class="stat-chip-val font-mono">0 B</span>
+                    </div>
+                    <div class="result-stat-chip">
+                        <span class="stat-chip-label">Map Tasks</span>
+                        <span id="res-map-tasks" class="stat-chip-val font-mono">0</span>
+                    </div>
+                    <div class="result-stat-chip">
+                        <span class="stat-chip-label">Job Duration</span>
+                        <span id="res-duration" class="stat-chip-val font-mono">0.0s</span>
+                    </div>
+                    <div class="result-stat-chip">
+                        <span class="stat-chip-label">Job Status</span>
+                        <span id="res-status" class="state-badge badge-idle">IDLE</span>
+                    </div>
+                </div>
+
+                <!-- Word Count Table Search Bar -->
+                <div class="results-toolbar">
+                    <div class="search-box">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                        <input type="text" id="results-search-input" class="search-input" placeholder="Search word results...">
+                    </div>
+                    <span id="results-filter-count" class="text-muted text-sm font-mono">0 results</span>
+                </div>
+
+                <div class="table-responsive results-table-wrapper">
+                    <table class="data-table" id="results-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 70px;">#</th>
+                                <th>Word</th>
+                                <th style="width: 140px;">Occurrences</th>
+                                <th style="width: 250px;">Relative Frequency</th>
+                            </tr>
+                        </thead>
+                        <tbody id="results-table-body">
+                            <tr class="empty-row" id="results-empty-row">
+                                <td colspan="4">
+                                    <div class="empty-state">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                            <polyline points="14 2 14 8 20 8"></polyline>
+                                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                                        </svg>
+                                        <p>No MapReduce job output available yet</p>
+                                        <span class="empty-hint">Submit a job above to view actual word-count results here</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 5. Registered Workers Section -->
+            <section class="section-card" id="workers-section">
+                <div class="section-card-header">
+                    <div class="title-with-badge">
+                        <h2 class="section-title">Registered Workers</h2>
+                        <span id="workers-count-badge" class="count-badge">0</span>
+                    </div>
+                    <div class="section-meta">TCP Port: 5000 &bull; Auto-heartbeat monitoring</div>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="data-table" id="workers-table">
+                        <thead>
+                            <tr>
+                                <th>Worker ID</th>
+                                <th>Status</th>
+                                <th>Assigned Task</th>
+                                <th>Heartbeat</th>
+                                <th>Network Address</th>
+                                <th>Uptime</th>
+                            </tr>
+                        </thead>
+                        <tbody id="workers-table-body">
+                            <!-- Populated dynamically -->
+                            <tr class="empty-row">
+                                <td colspan="6">
+                                    <div class="empty-state">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                            <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+                                            <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+                                            <line x1="6" y1="6" x2="6.01" y2="6"></line>
+                                            <line x1="6" y1="18" x2="6.01" y2="18"></line>
+                                        </svg>
+                                        <p>No workers currently registered</p>
+                                        <span class="empty-hint">Start a worker with <code>python workers/worker.py --worker-id worker-1</code></span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- FEATURE 2: Live Task Distribution & Scheduler Section -->
+            <section class="section-card" id="tasks-section">
+                <div class="section-card-header">
+                    <div class="title-with-badge">
+                        <h2 class="section-title">Live Task Distribution & Scheduler</h2>
+                        <span id="tasks-count-badge" class="count-badge">0</span>
+                    </div>
+                    <div class="table-filters" id="task-filter-group">
+                        <button class="filter-btn active" data-filter="all">All (<span id="filter-count-all">0</span>)</button>
+                        <button class="filter-btn" data-filter="pending">Pending (<span id="filter-count-pending">0</span>)</button>
+                        <button class="filter-btn" data-filter="assigned">Assigned (<span id="filter-count-assigned">0</span>)</button>
+                        <button class="filter-btn" data-filter="completed">Completed (<span id="filter-count-completed">0</span>)</button>
+                        <button class="filter-btn" data-filter="failed">Failed (<span id="filter-count-failed">0</span>)</button>
+                    </div>
+                </div>
+
+                <!-- FEATURE 2: Live Task Distribution Board -->
+                <div class="task-distribution-wrapper">
+                    <div class="task-distribution-header">
+                        <span class="distribution-title">Live Task Allocation Matrix</span>
+                        <span class="distribution-subtext">Real-time status, worker assignments, and retry counts for generated map tasks</span>
+                    </div>
+                    <div class="task-distribution-grid" id="task-distribution-grid">
+                        <div class="empty-state task-board-empty" id="task-board-empty">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <rect x="3" y="3" width="7" height="7"></rect>
+                                <rect x="14" y="3" width="7" height="7"></rect>
+                                <rect x="14" y="14" width="7" height="7"></rect>
+                                <rect x="3" y="14" width="7" height="7"></rect>
+                            </svg>
+                            <p>No map tasks created yet</p>
+                            <span class="empty-hint">Submit a job above to view live task assignments across workers</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="data-table" id="tasks-table">
+                        <thead>
+                            <tr>
+                                <th>Task ID</th>
+                                <th>State</th>
+                                <th>Assigned Worker</th>
+                                <th>Retries</th>
+                                <th>Failure Reason</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tasks-table-body">
+                            <!-- Populated dynamically -->
+                            <tr class="empty-row">
+                                <td colspan="5">
+                                    <div class="empty-state">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                            <polyline points="14 2 14 8 20 8"></polyline>
+                                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                                            <polyline points="10 9 9 9 8 9"></polyline>
+                                        </svg>
+                                        <p>No tasks currently scheduled</p>
+                                        <span class="empty-hint">Submit a job above or with <code>python submit_job.py --wait</code></span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- FEATURE 4: Recent Job History & Job Comparison Section -->
+            <section class="section-card history-section" id="history-section">
+                <div class="section-card-header">
+                    <div class="title-with-badge">
+                        <h2 class="section-title">Job Execution History & Comparison</h2>
+                        <span id="history-count-badge" class="count-badge">0</span>
+                    </div>
+                    <div class="section-meta">Comparative analysis of submitted MapReduce workloads</div>
+                </div>
+
+                <!-- FEATURE 4: Job Comparison KPI Summary & Matrix -->
+                <div class="job-comparison-wrapper" id="job-comparison-wrapper">
+                    <div class="job-comparison-kpis">
+                        <div class="kpi-chip">
+                            <span class="kpi-label">Recorded Jobs</span>
+                            <span class="kpi-val font-mono text-cyan" id="kpi-total-jobs">0</span>
+                        </div>
+                        <div class="kpi-chip">
+                            <span class="kpi-label">Avg Duration</span>
+                            <span class="kpi-val font-mono" id="kpi-avg-duration">--</span>
+                        </div>
+                        <div class="kpi-chip">
+                            <span class="kpi-label">Total Words Processed</span>
+                            <span class="kpi-val font-mono text-emerald" id="kpi-total-words">0</span>
+                        </div>
+                        <div class="kpi-chip">
+                            <span class="kpi-label">Fastest Execution</span>
+                            <span class="kpi-val font-mono" id="kpi-fastest-duration">--</span>
+                        </div>
+                    </div>
+
+                    <!-- Compact Job Comparison Matrix -->
+                    <div class="job-comparison-matrix-container">
+                        <div class="matrix-header-title">
+                            <span>Previous Job Comparison Matrix</span>
+                            <span class="text-muted text-xs">Derived from actual persistent metadata per job</span>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="data-table comparison-table" id="job-comparison-table">
+                                <thead>
+                                    <tr>
+                                        <th>Job ID</th>
+                                        <th>Status</th>
+                                        <th>Map Tasks</th>
+                                        <th>Input Size</th>
+                                        <th>Total Words</th>
+                                        <th>Unique Words</th>
+                                        <th>Duration</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="job-comparison-tbody">
+                                    <tr class="empty-row" id="comparison-empty-row">
+                                        <td colspan="8">
+                                            <div class="empty-state">
+                                                <p>No job comparison data available yet</p>
+                                                <span class="empty-hint">Submit jobs with different inputs to compare cluster execution metrics</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-responsive" style="margin-top: 1.5rem;">
+                    <div class="history-table-header-row">
+                        <span class="distribution-title">Detailed Execution Log</span>
+                    </div>
+                    <table class="data-table" id="history-table">
+                        <thead>
+                            <tr>
+                                <th>Job ID</th>
+                                <th>Submitted At</th>
+                                <th>Status</th>
+                                <th>Map Tasks</th>
+                                <th>Unique Words</th>
+                                <th>Duration</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table-body">
+                            <tr class="empty-row" id="history-empty-row">
+                                <td colspan="7">
+                                    <div class="empty-state">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <polyline points="12 6 12 12 16 14"></polyline>
+                                        </svg>
+                                        <p>No past jobs recorded yet</p>
+                                        <span class="empty-hint">Completed and failed job runs will be catalogued here</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <footer class="dashboard-footer">
+            <p>Distributed MapReduce &bull; College Distributed Systems Project &bull; TCP Master Port 5000 &bull; Dashboard HTTP Port 8080</p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

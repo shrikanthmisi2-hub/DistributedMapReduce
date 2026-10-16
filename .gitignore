@@ -1,0 +1,25 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Generated uploaded datasets
+datasets/uploads/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Virtual environments and secrets
+.venv/
+venv/
+.env
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/

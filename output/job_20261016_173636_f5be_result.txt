@@ -1,0 +1,4 @@
+bird: 1
+cat: 1
+dog: 3
+elephant: 1

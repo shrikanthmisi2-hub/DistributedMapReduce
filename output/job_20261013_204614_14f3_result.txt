@@ -1,0 +1,6 @@
+apple: 3
+banana: 2
+bird: 1
+cat: 2
+dog: 2
+mango: 1
